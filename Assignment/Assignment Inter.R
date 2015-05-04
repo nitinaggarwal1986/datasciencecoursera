@@ -1,7 +1,7 @@
-Source(forecast)
-Source(digest)
-Source(foreign)
-Source(TSA)
+require(forecast)
+require(digest)
+require(foreign)
+require(TSA)
 
 x<-read.table("data_scientist_assignment.tsv",TRUE)
 #Extracting Table from the file
