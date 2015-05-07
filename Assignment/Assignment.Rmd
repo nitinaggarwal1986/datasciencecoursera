@@ -1,0 +1,163 @@
+---
+title: "SARIMA modeling"
+author: "Nitin"
+date: "Wednesday, May 06, 2015"
+output: pdf_document
+---
+SARIMA modeling
+=====================
+
+This is an analysis of a time series dataset provided for a job interview. The dataset includes a time series variable named simply val, and is indexed for 139 days by hour of the day.
+
+The method used for this analysis is Box-Jenkins method.
+
+Before moving on let us first load the libraries.
+
+```{r echo=TRUE}
+require(forecast)
+require(digest)
+require(foreign)
+require(TSA)
+```
+
+Let us now read the data from the `tsv` or the _tab separated value_ file. To read such a file we will use the read.table command providing the separater as "`\t`". We also mention that the header is `TRUE` as the file contains the header. 
+
+```{r}
+dat=read.table("data_scientist_assignment.tsv",header=TRUE,sep="\t")
+```
+
+After loading the data we will explore it a bit by looking at the head, tail, and the summary of the data. 
+
+```{r}
+head(dat)
+tail(dat)
+summary(dat)
+str(dat)
+```
+
+Next, we convert the date in the `Date` class available in R. 
+
+```{r}
+dat[,"date"]=as.Date(dat[,"date"],origin="2014-05-01")
+head(dat)
+```
+
+Clearly, we have a time series at our hand and with a frequency 24. So, we create a new variable `tsdat` to store this time series in standard time series format. 
+
+```{r}
+tsdat=ts(dat$vals,frequency=24)
+```
+
+Let us now look at the plot of the time series.
+
+```{r}
+plot(tsdat, type="l", xlab="Days", ylab="Vals or tsdat", main="Time series plot of data")
+```
+
+The plot shows a good amount of seasonality in the data as well as a need for transformation. Let us look at the seasonality first by plotting the seasonal subseries by the `monthplot` function.
+
+```{r}
+monthplot(tsdat, xlab="Hour of the day", main="Seasonal Subseries plot")
+```
+
+We can not expect a better indication of seasonality than this plot. So, we need to remove the seasonality from the time series, but before that we would like to naturalize the data by the __Box Cox Transformation__ with $\lambda=0$, i.e by taking log of the entire time series. We store the new time series in the variable `tsdatn`.
+
+```{r}
+tsdatn=log(tsdat)
+plot(tsdatn)
+```
+
+Let us have a look at the outliers.
+
+```{r}
+tsdatnout=tsoutliers(tsdatn,iterate=24)
+tsdatnout
+```
+
+Notice how we have the index for the replacements required to remove the outliers. Let us do the replacements.
+
+```{r}
+tsdatr=tsdatn
+tsdatr[tsdatnout$index]=tsdatnout$replacements
+```
+
+Let us have a look at how we removed some of the outliers from the timeseries:
+
+```{r}
+plot(tsdatn,col="red")
+lines(tsdatr,col="blue")
+```
+
+Notice that the outliers are not totally removed. But we are at a much better stage than before and thats why we will just leave it as it is. 
+
+Let us now remove the seasonality by doing a seasonal difference. 
+
+```{r}
+tsdats=tsdatr[25:3264]-tsdatr[25:3264-24]
+plot(tsdats, type="l")
+
+```
+
+This appears a resonably stationary data. We do another sweep for the outliers. And do the suggested replacements.
+
+```{r}
+tsdatnout=tsoutliers(tsdats,iterate=24)
+tsdatnout
+tsdatsr=tsdats
+tsdatsr[tsdatnout$index]=tsdatnout$replacements
+plot(tsdatsr,type="l")
+```
+
+Let us now check the `ACF` and `PCF` curves to get an idea of the given time series. We are using the `tsdisplay` function to get a good summary here.
+
+```{r}
+tsdisplay(tsdatsr)
+```
+
+The `Auto-Correlation Function` has a shape that is alternating positive and negative and it appears to be decreasing to zero. That suggests an autoregressive model. Looking at the `Partial Auto-Correlation Function` we see that there are spikes at 24. 25, 26, 28, 29, 30, 31 and 32. Also, we notice that 24th spike is negative and the spikes after this one looks very similar to the initial spikes. This indicates that a seasonal autoregressive factor should be included along with autoregressive factors. 
+
+Let us explain a part of these spikes by a seasonal autoregression factor and the rest by ARIMA(5,0,2) which is giving coefficients corresponding spikes.  
+
+So, we are trying to fit a seasonal ARIMA model SARIMA$$(5,0,2)(1,0,0)_24$$
+
+```{r}
+tsdatfit=arima(tsdatsr,order=c(5,0,2),seasonal=c(1,0,0))
+tsdatfit
+```
+
+As an indicator for the fit let us look at the residuals of this model, by plotting the `tsdisplay` of the residuals and performing the `Ljung-Box` test which _is a type of statistical test of whether any of a group of autocorrelations of a time series are different from zero._
+
+```{r}
+tsdisplay(residuals(tsdatfit))
+Box.test(residuals(tsdatfit), lag=24, fitdf=4, type="Ljung")
+```
+
+The `ACF` and `PACF` plots are showing possiblity for an extra seasonal autoregresser although the values are still within margin or erro. The small p-value returned by `Ljung-Box` give a firm answer that we do not need to change the model further.
+
+Let us define a function to get the predicted values from this model for the original data and plot the predicted value against the given value. 
+
+```{r}
+tspred=tsdat[25:3264-24]*exp(fitted.values(tsdatfit))
+tspredtable=cbind(tsdat[25:3264],tspred)
+head(tspredtable)
+plot(tspredtable)
+plot(tspred, tsdat[25:3264])
+```
+
+Let us look at a bit towards interventional analysis. 
+
+```{r echo=FALSE}
+tsdatfitinter=arimax(tsdatsr,order=c(4,0,1),seasonal=list(order=c(1,0,0),period=24), xtransf=data.frame(I504=1*(seq(tsdatsr)==504),I1488=1*(seq(tsdatsr)==1488), I3104=1*(seq(tsdatsr)==3104),I3128=1*(seq(tsdatsr)==3128)),transfer=list(c(1,0),c(1,0),c(1,0),c(1,0)),method='ML')
+tsdatfitinter
+```
+
+Let us look at the predicted values by this model.
+
+```{r}
+tspredinter=tsdat[25:3264-24]*exp(fitted.values(tsdatfitinter))
+tspredtable=cbind(tsdat[25:3264],tspredinter)
+head(tspredtable)
+plot(tspredtable)
+plot(tspredinter, tsdat[25:3264])
+```
+
