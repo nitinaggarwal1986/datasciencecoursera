@@ -1,0 +1,223 @@
+---
+title: "What gives better mpg, Automatic or Manual transmission?"
+author: "Nitin Aggarwal"
+date: "September 27, 2015"
+output: pdf_document
+fontsize: 10pt
+---
+
+## Executive Summary
+
+To answer the dependence of mpg on Automatic vs Manual transmission, `mtcars` data is studied. After exploration a few models are derived and a best model is chosen from which it was found that the dependence of `mpg`, miles/gallon for different cars is confounded on `hp`, `wt`, and `cyl`, i.e. the horsepower, weight, and number of cylinders. The final linear models shows that the Manual cars have **1.809MPGS** more than that of Automatic cars. 
+
+
+## Introduction
+
+We are working with the `mtcars` data which can be loaded through `datasets` as follows:
+
+```{r}
+data("mtcars")
+```
+
+```{r, echo = FALSE}
+options(digits = 3)
+```
+Let us also convert the qualitative features as factor variables.
+
+```{r, echo = FALSE}
+mtcars$cyl<-as.factor(mtcars$cyl)
+mtcars$vs<-as.factor(mtcars$vs)
+mtcars$am<-as.factor(mtcars$am)
+mtcars$gear<-as.factor(mtcars$gear)
+```
+
+A call to the R help shows the following description to the data:
+
+*The data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973-74 models).*
+
+#### Goal
+As the title suggests the main goal of this analysis is to study the effect of type of transmission, automatic vs manual, on mpg. 
+
+
+## Exploration
+
+In **Appendix 1** we have a sequence of plots ploting `mpg` against other features with respect to transmission type. 
+
+Let us also get the correlations of different features present in `mtcars` as follows:
+
+```{r}
+ind<-sapply(1:11,function(i)!is.factor(mtcars[1:nrow(mtcars),i]))
+mtcars.corr<-cor(mtcars[,ind])
+mtcars.corr
+```
+
+From these one can infer that `mpg` has high level of positive or negative correlation with features in columns `disp`, `hp`, `wt`, `dart`, `carb`. Of these `disp`, `quesc`, `carb` shows high correlation with `hp`, giving a possibility of them being redundant. Also, from the graphs in **Appendix 1** we notice that among the factor columns, `cyl`, `vs`, and `gear`, all of them are shown to affect the `mpg`, but the columns `cyl` and `gear` are also showing interaction with `am` column. 
+
+## Linear Regression
+
+We will fit the following models we found from our analysis, and choose the best of them.
+
+1. `mpg` against just `am`
+
+2. `mpg` against `am`, `cyl`
+
+3. `mpg` against `am`, `cyl`, `gear`
+
+4. `mpg` against interactions between `am` and `cyl`
+
+5. `mpg` against interactions between `am` and `gear`
+
+6. `mpg` against interactions between `am` and `cyl`, and between `am` and `gear`
+
+7. `mpg` against `hp` with best of above models.
+
+8. above model with `wt` included
+
+Let us create the first six models first:
+
+```{r, echo = FALSE}
+fit<-list()
+
+fit[[1]] <- lm(mpg ~ am, mtcars)
+
+fit[[2]] <- lm(mpg ~ am + cyl, mtcars)
+
+fit[[3]] <- lm(mpg ~ am + cyl + gear, mtcars)
+
+fit[[4]] <- lm(mpg ~ am * cyl, mtcars)
+
+fit[[5]] <- lm(mpg ~ am * gear, mtcars)
+
+fit[[6]] <- lm(mpg ~ am * cyl + am * gear, mtcars)
+
+```
+
+Let us choose the best of top three first.
+
+```{r}
+anova(fit[[1]], fit[[2]], fit[[3]])
+```
+
+Choosing the second model, let us compare it with the fourth and sixth model, ignoring fifth because of absense of `cyl` in it.
+
+```{r}
+anova(fit[[2]], fit[[4]], fit[[6]])
+```
+
+From this result because of high p values we keep the second of above six model and compare it with the updated by `hp` and then that with `wt`. These models are tested against the second model above in one line as follows:
+
+```{r}
+anova(fit[[2]],
+      update(fit[[2]], .~. + hp),
+      update(fit[[2]], .~. + hp + wt))
+
+```
+
+From this we choose the third of these models. Following presents the details about this model:
+
+```{r}
+fitf<-update(fit[[2]], .~. + hp + wt)
+fitf
+```
+
+Let us now quantify this plot using a diagnosis using residuals:
+
+## Residuals and diagnositcs
+
+The residuals and the Normal Q-Q plot in `Appendix 2` shows that the data is free of heteroscedasticity and is normal. 
+
+
+## Conclusion
+
+We get following two results from our analysis:
+
+1. Manual transmission gives more mileage per gallon given the fixed values of cyl, hp, and wt. 
+
+2. Manual transmission increases the mileage by `r fitf$coefficients[2]` miles per gallon. 
+
+## Appendix 1
+
+
+```{r, echo = FALSE}
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+```{r echo = FALSE}
+library(ggplot2)
+g<-list()
+for(i in c(2:8,10:11)){
+  
+  if(is.factor(mtcars[,i])){
+  
+    g[[length(g)+1]]<-ggplot(data = data.frame(y = mtcars[,1], x = mtcars[,i], type = mtcars[,9]), 
+           aes(y = y, colour = type, x = x))+ 
+      geom_point() + 
+      xlab(colnames(mtcars)[i]) + theme(legend.position="none") +
+      ylab("mpg") + 
+      ggtitle(paste("mpg vs ", colnames(mtcars)[i], " given transmission."))
+  } else{
+      g[[length(g)+1]]<-ggplot(data = data.frame(y = mtcars[,1], x = mtcars[,i], type = mtcars[,9]), 
+           aes(y = y, colour = type, x = x))+ 
+        geom_point() + 
+        xlab(colnames(mtcars)[i]) + theme(legend.position="none") +
+        ylab("mpg") + 
+        ggtitle(paste("mpg vs ", colnames(mtcars)[i], " given transmission."))
+        geom_violin()  
+  }
+}
+multiplot(g[[1]],g[[2]], g[[3]],g[[4]],cols = 2)
+multiplot(g[[5]],g[[6]], g[[7]],g[[8]],cols = 2)
+g[[9]]
+
+```
+
+
+## Appendix 2
+
+```{r, echo = FALSE}
+plot(fitf, which = c(1,2))
+```

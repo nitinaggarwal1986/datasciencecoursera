@@ -1,0 +1,169 @@
+---
+title: "Analysis of Toothgrowth Data"
+author: "Nitin Aggarwal"
+date: "September 26, 2015"
+output: pdf_document
+---
+
+## Data
+
+Let us load the `ToothGrowth` data as follows.
+
+```{r}
+data("ToothGrowth")
+```
+
+A description on the help server on R about the `ToothGrowth` dataset shows following description:
+
+*The response is the length of odontoblasts (teeth) in each of 10 guinea pigs at each of three dose levels of Vitamin C (0.5, 1, and 2 mg) with each of two delivery methods (orange juice or ascorbic acid).*
+
+#### Assumtion
+
+Although it is mentioned that there are just 10 guinea pigs because the indicators are not given about which one is which, we are going to take the observation as coming from independent sample, i.e. we will assume that there are 60 guinea pigs instead of just 10. 
+
+Let us look at the dimensions and the head of the data to see what we are dealing with here.
+
+```{r}
+dim(ToothGrowth)
+head(ToothGrowth)
+```
+
+## Exploration
+
+Let us have a look at the summary of this dataset using the R function `summary`.
+
+```{r}
+summary(ToothGrowth)
+```
+
+So, the column `supp` must be a factor class columns with the two classes `r levels(ToothGrowth$supp)` representing the two delivery methods **orange juice** or **ascorbic acid**. Let us make some modifications in leu of this.
+
+```{r}
+levels(ToothGrowth$supp)<-c("Orange Juice", "Ascorbic Acid")
+```
+
+Let us draw a facet plot distinguishing the responses of the dosages given to the guinea pigs using these two methods as follows.
+
+```{r}
+library(ggplot2)
+ggplot() + 
+  geom_point(data = ToothGrowth, 
+             aes(x = dose, y = len, colour = dose, type = supp)) +
+  xlab("Dose levels of Vitamin C(mg)") +
+  ylab("Length of odontoblasts")  +
+  ggtitle("Response, length, vs dose level for the two delivery methods.") +
+  facet_grid(.~supp)
+
+```
+
+So, in this `r nrow(ToothGrowth)`x`r ncol(ToothGrowth)` table, we have three columns one is the response of the test in column named `len` representing the length of odontoblasts(teeth) in each of 10 guinea pigs. Now, this is response to two features first is the dosage of Vitamin C mentioned in the column called `dose` taking values (0.5, 1, and 2mg) and the column `supp` to give the delivery method as discussed earlier. 
+
+The increase in dosage of Vitamin C indicates the increase in the response in general. We will see this in numbers in the next section.
+
+## Analysis of the data
+
+The plot in the previous section suggests following two hypothesis:
+
+1. The length of odontoblasts(teeth) in guinea pigs increases with the increase in dosage of Vitamin C.
+
+2. The delivery method of Vitamin C is more effective via orange juice versus that via ascorbic acid.
+
+Let us study these two hypothesis separately as follows;
+
+### Hypothesis 1: Effect of dosage
+
+First we test the hypothesis mentioned above: *Increase in dosage of Vitamin C increases the length of odontoblasts(teeth)*.
+
+If we denote the means of the length of teeth for the three different dose levels of Vitamin C, 0.5, 1, and 2mg as m1, m2, and m3 respectively. Then we can test three alternate hypothesis as follows:
+
+
+1. H1_a: m1 < m2,
+
+2. H2_a: m2 < m3, and
+
+3. H3_a: m1 < m3,
+
+against the null hypothesis:
+
+1. H1_0: m1 = m2 
+
+2. H2_0: m2 = m3, and
+
+3. H3_0: m1 = m3
+
+
+We automatically get the third hypothesis if we select the first two. Let us do this testing for the level of testing alpha as 0.05.
+
+Let us extract the vectors for the lengths for different doses and store them into the variables `x1`, `x2`, and `x3`, respectively.
+
+```{r}
+x1 <- ToothGrowth$len[ToothGrowth$dose==0.5]
+x2 <- ToothGrowth$len[ToothGrowth$dose==1]
+x3 <- ToothGrowth$len[ToothGrowth$dose==2]
+```
+
+Now, the t-tests for the above hypotheses are as follows:
+
+```{r}
+t.test(x1, x2, alternative = "less", mu = 0, paired = FALSE, 
+       var.equal = FALSE, conf.level = 0.95)
+t.test(x2, x3, alternative = "less", mu = 0, paired = FALSE, 
+       var.equal = FALSE, conf.level = 0.95)
+t.test(x1, x3, alternative = "less", mu = 0, paired = FALSE, 
+       var.equal = FALSE, conf.level = 0.95)
+```
+
+####Verdict
+
+These p-values suggests that we can reject all of the null hypothesis and accept the alternate hypothesis, in short proving that increase in dose of Vitamin C increases the lengths of teeth. 
+
+### Hypothesis 2: Effect of delivery methods
+
+About the delivery method we can hypothesise only one thing and that is Orange Juice is a better medium than Ascorbic Acid for any dose level.
+
+So, if we break the data into six parts as follows:
+
+```{r}
+supp_levels <- levels(ToothGrowth$supp)
+x1OJ <- ToothGrowth$len[ToothGrowth$supp == supp_levels[1] & ToothGrowth$dose == 0.5]
+x2OJ <- ToothGrowth$len[ToothGrowth$supp == supp_levels[1] & ToothGrowth$dose == 1]
+x3OJ <- ToothGrowth$len[ToothGrowth$supp == supp_levels[1] & ToothGrowth$dose == 2]
+x1VC <- ToothGrowth$len[ToothGrowth$supp == supp_levels[2] & ToothGrowth$dose == 0.5]
+x2VC <- ToothGrowth$len[ToothGrowth$supp == supp_levels[2] & ToothGrowth$dose == 1]
+x3VC <- ToothGrowth$len[ToothGrowth$supp == supp_levels[2] & ToothGrowth$dose == 2]
+
+```
+
+Let us use a similar representation for the means also. For example mean for the response for dose level 0.5 and delivery method orange juice as mu1OJ, etc.
+
+So, based on these we can divide the hypothesis for this section into three separate part, namely Orange Juice is more effective than Ascorbic Acid at dose level 0.5mg, 1mg, and 2mg respectively. For this the alternate hypothesis for the null hypothesis Hj_0: mujOJ = mujVC is 
+Hj_a: mujOJ > mujVC for j = 1, 2, 3.
+
+The t-tests for these hypothesis are as follows:
+
+
+```{r}
+t.test(x1OJ, x1VC, alternative = "greater", mu = 0, paired = FALSE, 
+       var.equal = FALSE, conf.level = 0.95)
+t.test(x2OJ, x2VC, alternative = "greater", mu = 0, paired = FALSE, 
+       var.equal = FALSE, conf.level = 0.95)
+t.test(x3OJ, x3VC, alternative = "greater", mu = 0, paired = FALSE, 
+       var.equal = FALSE, conf.level = 0.95)
+```
+
+So, the null hypothesis is rejected at 1% level of significance, when the dose levels are 0.5mg and 1mg. But it is not rejected when dose level is 2mg. 
+
+####Verdict
+Orange Juice is more effective than Ascorbic Acid at increasing the length of the teeth when the dose level is 0.5mg or 1mg. This is not the case when dose level is 2mg. 
+
+
+##Conclusion
+
+Based on the hyposthesis testing done above we found the following:
+
+1. Increase in dose level of Vitamin C increases the length of teeth.
+
+2. Orange Juice is more effective than Ascorbic Acid at increasing the length of the teeth when the dose level is 0.5mg or 1mg. 
+
+One assumption taken in this data is the independence of the observation inspite of the mention of relationship in the absense of the indicators. 
+
